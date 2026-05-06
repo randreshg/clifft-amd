@@ -1,0 +1,13 @@
+[project]
+name = "clifft-cuda"
+version = "0.0.1"
+description = "Experimental CUDA sampler backend scaffold for Clifft programs"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
