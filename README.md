@@ -15,6 +15,8 @@ for distance-5 magic state cultivation circuits with noise level p=0.1%:
 |Clifft|Xeon(R) Gold 5218R CPU @ 2.10GHz|125 W|~59,800 shots/s|-|
 |Clifft-cuda|NVIDIA RTX PRO 5000|300 W|~1,180,000 shots/s|19.7|
 
+We sampled 100 billion shots in 24 hours and obtained an after-postselection logical error rate of 3.54e-09 (with 51 errors found).
+
 ## Run A Circuit
 
 From the `clifft-cuda` directory:
