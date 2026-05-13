@@ -1,2 +1,0 @@
-/usr/bin/ar qc libclifft_cuda.a CMakeFiles/clifft_cuda.dir/src/cuda_sampler.cpp.o
-/usr/bin/ranlib libclifft_cuda.a

@@ -1,3 +1,0 @@
-/home/lirl/codex/clifft-cuda/build/CMakeFiles/clifft_cuda.dir
-/home/lirl/codex/clifft-cuda/build/CMakeFiles/edit_cache.dir
-/home/lirl/codex/clifft-cuda/build/CMakeFiles/rebuild_cache.dir
