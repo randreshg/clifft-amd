@@ -1,0 +1,9 @@
+R 0 1 2
+H 0
+CX 0 1
+CX 1 2
+X_ERROR(0.05) 0 1 2
+M 0 1 2
+DETECTOR rec[-2] rec[-3]
+DETECTOR rec[-1] rec[-2]
+OBSERVABLE_INCLUDE(0) rec[-1]

@@ -175,7 +175,7 @@ def sample_survivors_cpu(workload: CompiledWorkload) -> dict[str, Any]:
     logical_errors = int(result.logical_errors)
 
     return {
-        "backend": "cpu-reference-clifft",
+        "backend": "cpu-reference-clifft-core",
         "clifft_version": clifft.__version__,
         "svm_backend": clifft.svm_backend(),
         "circuit_path": str(workload.circuit_path),
@@ -217,4 +217,176 @@ def sample_survivors_cuda(_: CompiledWorkload) -> dict[str, Any]:
         f"Missing: {diag.missing_summary()}. "
         "Install a CUDA toolkit with nvcc and headers, or libnvrtc plus headers, "
         "then build the native clifft-cuda extension."
+    )
+
+
+# ---------------------------------------------------------------------------
+# HIP / ROCm backend (AMD MI300X, gfx942, wavefront 64)
+#
+# Parallel to the CUDA path above. The native sampler lives in
+# src/hip_sampler.hip and is exposed by the run_msc_hip C++ CLI; the Python
+# layer mirrors the CUDA boundary so callers can select a backend uniformly.
+# Nothing here alters or removes the CUDA path.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RocmDiagnostics:
+    rocminfo: bool
+    rocm_smi: bool
+    libamdhip64: str | None
+    hipcc: str | None
+    hip_header: Path | None
+    gcn_arch: str | None
+
+    @property
+    def driver_available(self) -> bool:
+        return (self.rocminfo or self.rocm_smi) and self.libamdhip64 is not None
+
+    @property
+    def toolkit_available(self) -> bool:
+        return self.hipcc is not None and self.hip_header is not None
+
+    @property
+    def can_build_native_hip(self) -> bool:
+        return self.driver_available and self.toolkit_available
+
+    def missing_summary(self) -> str:
+        missing: list[str] = []
+        if not (self.rocminfo or self.rocm_smi):
+            missing.append("rocminfo/rocm-smi (GPU driver visibility)")
+        if self.libamdhip64 is None:
+            missing.append("libamdhip64")
+        if self.hipcc is None:
+            missing.append("hipcc")
+        if self.hip_header is None:
+            missing.append("hip/hip_runtime.h")
+        return ", ".join(missing) if missing else "none"
+
+
+def _rocm_roots() -> list[str | None]:
+    return [
+        os.environ.get("ROCM_PATH"),
+        os.environ.get("ROCM_HOME"),
+        os.environ.get("HIP_PATH"),
+        os.environ.get("HIP_ROOT_DIR"),
+        os.environ.get("CONDA_PREFIX"),
+        "/opt/rocm",
+        str(Path.cwd() / "rocm-env"),
+    ]
+
+
+def _find_rocm_command(cmd: str) -> str | None:
+    found = shutil.which(cmd)
+    if found:
+        return found
+    for root in _rocm_roots():
+        if not root:
+            continue
+        exe = Path(root) / "bin" / cmd
+        if exe.exists():
+            return str(exe)
+    return None
+
+
+def _command_exists_path(path: str | None) -> bool:
+    if path is None:
+        return False
+    try:
+        subprocess.run([path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+    except Exception:
+        return False
+    return True
+
+
+def _find_hip_header() -> Path | None:
+    candidates = [
+        Path("/opt/rocm/include/hip/hip_runtime.h"),
+        Path("/usr/include/hip/hip_runtime.h"),
+    ]
+    for root in _rocm_roots():
+        if not root:
+            continue
+        base = Path(root)
+        candidates.extend(
+            [
+                base / "include" / "hip" / "hip_runtime.h",
+                base / "hip" / "include" / "hip" / "hip_runtime.h",
+            ]
+        )
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
+def _find_rocm_library(name: str) -> str | None:
+    found = ctypes.util.find_library(name)
+    if found:
+        return found
+    patterns = [f"lib{name}.so", f"lib{name}.so.*"]
+    for root in _rocm_roots():
+        if not root:
+            continue
+        base = Path(root)
+        dirs = [
+            base / "lib",
+            base / "lib64",
+            base / "hip" / "lib",
+        ]
+        for directory in dirs:
+            for pattern in patterns:
+                matches = sorted(directory.glob(pattern))
+                if matches:
+                    return str(matches[0])
+    return None
+
+
+def _detect_gcn_arch() -> str | None:
+    """Best-effort probe of the installed AMD GPU arch (e.g. gfx942)."""
+
+    rocminfo = _find_rocm_command("rocminfo")
+    if rocminfo is None:
+        return None
+    try:
+        proc = subprocess.run(
+            [rocminfo],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            text=True,
+        )
+    except Exception:
+        return None
+    for line in proc.stdout.splitlines():
+        stripped = line.strip()
+        if "gfx" in stripped and "Name:" in stripped:
+            token = stripped.split("Name:", 1)[1].strip()
+            if token.startswith("gfx"):
+                return token
+    return None
+
+
+def check_rocm() -> RocmDiagnostics:
+    rocminfo = _find_rocm_command("rocminfo")
+    rocm_smi = _find_rocm_command("rocm-smi")
+    return RocmDiagnostics(
+        rocminfo=_command_exists_path(rocminfo),
+        rocm_smi=_command_exists_path(rocm_smi),
+        libamdhip64=_find_rocm_library("amdhip64"),
+        hipcc=_find_rocm_command("hipcc"),
+        hip_header=_find_hip_header(),
+        gcn_arch=_detect_gcn_arch(),
+    )
+
+
+def sample_survivors_hip(_: CompiledWorkload) -> dict[str, Any]:
+    """Placeholder for the native HIP/ROCm sampler boundary (MI300X / gfx942)."""
+
+    diag = check_rocm()
+    raise BackendUnavailable(
+        "HIP sampler is not buildable/runnable in this workspace. "
+        f"Missing: {diag.missing_summary()}. "
+        "Install ROCm with hipcc and HIP headers plus libamdhip64, "
+        "then build the native run_msc_hip target (cmake -DCLIFFT_AMD_ENABLE_HIP=ON)."
     )

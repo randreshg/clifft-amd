@@ -1,17 +1,10 @@
-/build/
-/build-*/
-/CMakeFiles/
-/CMakeCache.txt
-/cmake_install.cmake
-/Makefile
+build-core-cuda/
+build-core-hip/
+builds/
+runs/
 *.o
-*.o.d
-*.a
-
+*.stdout.json
+*.stderr.log
 __pycache__/
-*.py[cod]
-.pytest_cache/
 .venv/
 
-/runs/
-/cuda-env

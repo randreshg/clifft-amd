@@ -58,6 +58,29 @@ system default compiler is supported by nvcc, they can be omitted.
 
 Expected output lists at least one CUDA device.
 
+## Build for AMD GPUs (ROCm / HIP)
+
+The HIP backend needs ROCm (tested with 7.2.0) and `hipcc` on `PATH`. Build it
+with the `CLIFFT_AMD_ENABLE_HIP` option, setting the GPU arch for your card
+(`gfx942` for MI300X):
+
+```bash
+cmake -S . \
+  -B build-core-hip \
+  -DCLIFFT_AMD_ENABLE_HIP=ON \
+  -DCLIFFT_SOURCE_DIR=./third_party/clifft \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_HIP_ARCHITECTURES=gfx942
+
+cmake --build build-core-hip -j
+```
+
+This builds `build-core-hip/run_msc_hip`, which takes the same flags and emits
+the same JSON as `run_msc_cuda`. Check the device with
+`./build-core-hip/run_msc_hip --diagnose`; the output lists at least one
+`gfx942` device. The CUDA build is independent, so either, both, or neither
+backend can be enabled.
+
 ## Run Sampling
 
 Example d=5, p=0.001 run:
